@@ -34,6 +34,14 @@ project/
 
 ---
 
+## Application Routes
+
+| Route         | Method | Description                          | Response Example                        |
+|---------------|--------|--------------------------------------|-----------------------------------------|
+| `/`           | GET    | Home — confirms deployment is live   | `{"message": "CI/CD Pipeline is live!"}` |
+| `/health`     | GET    | Health check for uptime monitoring   | `{"status": "healthy"}`                 |
+| `/add/<a>/<b>`| GET    | Adds two integers (tests logic path) | `{"result": 10}`                        |
+
 ---
 
 ## Running Locally
@@ -42,8 +50,8 @@ project/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/pemadolker/DSO101_A4.git
-cd  DSO101_A4
+git clone https://github.com/<your-username>/<your-repo>.git
+cd <your-repo>
 
 # 2. Install dependencies
 pip install -r requirements.txt
@@ -152,3 +160,17 @@ pytest test_app.py -v
 | **Gunicorn** | Production-grade WSGI server for Flask |
 
 ---
+
+## Marking Scheme Mapping
+
+| Criteria | Implementation |
+|----------|---------------|
+| Project structure (2) | Follows required layout: `app.py`, `test_app.py`, `requirements.txt`, `.github/workflows/ci.yml` |
+| CI pipeline — build + test (3) | `ci.yml` installs deps, runs pytest, fails pipeline on test failure |
+| Test implementation (2) | 6 pytest tests covering all routes + sanity check |
+| Deployment automation (2) | Render deploy hook triggered by GitHub Actions only on passing tests |
+| Documentation (1) | This README |
+
+---
+
+*Assignment IV — DSO101 | Royal University of Bhutan*

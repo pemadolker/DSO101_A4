@@ -1,0 +1,49 @@
+name: CI/CD Pipeline
+
+# Trigger: run on every push to 'main' branch
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest   # GitHub spins up a fresh Ubuntu VM for every run
+
+    steps:
+      # Step 1: Check out the repository code into the runner
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Install Python 3.9 on the runner
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # Step 3: Cache pip packages to speed up future runs
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Step 4: Install all dependencies from requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 5: Run the test suite with pytest (verbose output + coverage summary)
+      - name: Run tests
+        run: pytest test_app.py -v
+
+      # Step 6: Trigger Render auto-deploy via deploy hook
+      # The RENDER_DEPLOY_HOOK_URL is stored as a GitHub Secret (never in code)
+      - name: Deploy to Render
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "Triggering deployment to Render..."
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Deployment triggered successfully."
