@@ -454,14 +454,13 @@ The workflow is defined in `.github/workflows/ci.yml`. It runs on every push and
 
 ## Live URL
 
-> `https://student-management-api.onrender.com`
-> *(Replace with your actual Render URL after deployment)*
+> `https://dso101-a4-s6u4.onrender.com`
 
 ---
 
 ## GitHub Repository
 
-> `https://github.com/<your-username>/student-management-api`
+> `https://github.com/pemadolker/DSO101_A4`
 > *(Replace with your actual repository URL)*
 
 ---
