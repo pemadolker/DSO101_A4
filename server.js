@@ -6,8 +6,8 @@
  */
 
 import "dotenv/config";
-import app from "./src/app.js";
-import connectDB from "./src/config/db.js";
+import app from "./student-management-api/src/app.js";
+import connectDB from "./student-management-api/src/config/db.js";
 
 const PORT = process.env.PORT || 3000;
 
