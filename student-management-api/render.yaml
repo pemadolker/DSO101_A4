@@ -1,0 +1,45 @@
+# render.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Render Infrastructure-as-Code configuration.
+# Render reads this file from the repository root and automatically
+# provisions the service on every push to the main branch.
+#
+# Docs: https://render.com/docs/blueprint-spec
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  - type: web               # Render web service (HTTP)
+    name: student-management-api
+    runtime: node
+    region: oregon           # us-west-2 — choose the region closest to you
+
+    # ── Source ────────────────────────────────────────────────────────────────
+    # Render pulls from the GitHub repo linked during dashboard setup.
+    branch: main             # Auto-deploy whenever main is updated
+
+    # ── Build & Start ─────────────────────────────────────────────────────────
+    buildCommand: npm ci              # Install exact dependency versions
+    startCommand: node server.js      # Production start (no nodemon)
+
+    # ── Runtime environment ────────────────────────────────────────────────────
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # MONGO_URI must be set in the Render dashboard (secret).
+      # It is listed here so the blueprint documents that it is required.
+      - key: MONGO_URI
+        sync: false          # "sync: false" means Render will prompt for the value
+
+      # Render injects PORT automatically; listing it here is optional
+      # but makes the configuration self-documenting.
+      - key: PORT
+        value: "3000"
+
+    # ── Health check ──────────────────────────────────────────────────────────
+    # Render will poll this path after each deploy. A non-200 response
+    # causes the deploy to be marked as failed and rolled back.
+    healthCheckPath: /
+
+    # ── Auto-scaling (free tier) ──────────────────────────────────────────────
+    plan: free

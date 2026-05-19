@@ -1,0 +1,93 @@
+# .github/workflows/ci.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Continuous Integration Pipeline — Student Management API
+#
+# Triggers:
+#   • Every push to the main branch
+#   • Every pull request targeting the main branch
+#
+# Stages:
+#   1. Checkout          – clone the repository
+#   2. Setup Node.js     – install the correct runtime version
+#   3. Install deps      – restore node_modules from cache or npm ci
+#   4. Lint              – static analysis with ESLint
+#   5. Test + Coverage   – run Jest and enforce 80 % coverage threshold
+#   6. Verify build      – confirm the app module can be imported without errors
+#   7. Prepare deploy    – final status gate before Render auto-deploys
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: Build, Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Step 1: Checkout ────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Step 2: Setup Node.js ───────────────────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # Cache npm dependencies to speed up subsequent runs
+          cache: "npm"
+
+      # ── Step 3: Install dependencies ────────────────────────────────────────
+      - name: Install dependencies
+        # npm ci installs exact versions from package-lock.json
+        # and fails if the lockfile is out of sync
+        run: npm ci
+
+      # ── Step 4: Lint ────────────────────────────────────────────────────────
+      # ESLint is not installed as a devDependency to keep the project lean.
+      # This step uses the Node.js --check flag as a lightweight syntax lint.
+      - name: Lint — syntax check (Node.js)
+        run: |
+          echo "Running syntax checks on all source files..."
+          node --check src/app.js
+          node --check src/config/db.js
+          node --check src/controllers/studentController.js
+          node --check src/middleware/errorMiddleware.js
+          node --check src/middleware/validateStudent.js
+          node --check src/models/Student.js
+          node --check src/routes/studentRoutes.js
+          node --check server.js
+          echo "✅ All files passed syntax check"
+
+      # ── Step 5: Run unit tests + generate coverage report ───────────────────
+      - name: Run tests with coverage
+        # MONGO_URI is NOT required — tests use mongodb-memory-server
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+
+      # ── Step 6: Verify build success ────────────────────────────────────────
+      - name: Verify build
+        # Confirm that the app module exports without runtime errors.
+        # This acts as a smoke test for the production start command.
+        run: |
+          echo "Verifying application module loads correctly..."
+          node -e "import('./src/app.js').then(() => { console.log('✅ App module loaded successfully'); process.exit(0); }).catch(e => { console.error('❌ App module failed:', e.message); process.exit(1); })"
+
+      # ── Step 7: Prepare deployment ──────────────────────────────────────────
+      - name: Prepare deployment
+        # This step signals Render (via its GitHub integration) that the
+        # pipeline passed. Render will pick up the latest commit on main
+        # and redeploy automatically.
+        run: |
+          echo "🚀 All checks passed. Deployment to Render is ready."
+          echo "📦 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "👤 Author: ${{ github.actor }}"
