@@ -1,0 +1,148 @@
+# .github/workflows/ci.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# CI/CD Pipeline — Student Management API
+#
+# CONTINUOUS INTEGRATION (CI):
+#   Automatically runs on every push and pull request to main.
+#   Ensures code is always tested before it can reach production.
+#   Stages: checkout → setup → install → lint → test → verify build
+#
+# CONTINUOUS DEPLOYMENT (CD):
+#   Only runs AFTER all CI stages pass.
+#   Triggers Render to pull the latest code and redeploy automatically.
+#   This guarantees broken code can NEVER reach the live production server.
+#
+# This is the core DevOps principle: automate everything, trust nothing
+# that hasn't been tested.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 1 — CONTINUOUS INTEGRATION
+  # Runs on every push and pull request.
+  # All stages must pass before deployment is triggered.
+  # ═══════════════════════════════════════════════════════════════════════════
+  continuous-integration:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Stage 1: Checkout ──────────────────────────────────────────────────
+      # The GitHub Actions runner is a fresh virtual machine with no code.
+      # This step clones our repository into the runner so subsequent
+      # steps can access our source files.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Stage 2: Setup Node.js ─────────────────────────────────────────────
+      # Installs Node.js 20 on the runner.
+      # Using a fixed version prevents "works on my machine" bugs caused
+      # by different Node versions in development vs CI vs production.
+      # The cache option saves node_modules between runs for faster builds.
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # ── Stage 3: Install Dependencies ──────────────────────────────────────
+      # npm ci (clean install) installs exact versions from package-lock.json.
+      # Unlike npm install, it never updates the lockfile and fails if
+      # package.json and package-lock.json are out of sync.
+      # This ensures every CI run uses identical dependency versions.
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Stage 4: Lint / Syntax Check ───────────────────────────────────────
+      # Runs Node's built-in syntax checker on every source file.
+      # Catches typos, missing brackets, and syntax errors before
+      # wasting time running the full test suite.
+      - name: Lint — syntax check
+        run: |
+          echo "Running syntax checks on all source files..."
+          node --check src/app.js
+          node --check src/config/db.js
+          node --check src/controllers/studentController.js
+          node --check src/middleware/errorMiddleware.js
+          node --check src/middleware/validateStudent.js
+          node --check src/models/Student.js
+          node --check src/routes/studentRoutes.js
+          node --check server.js
+          echo "✅ All files passed syntax check"
+
+      # ── Stage 5: Run Tests + Coverage ──────────────────────────────────────
+      # Runs all 22 Jest tests and generates a coverage report.
+      # The pipeline FAILS here if:
+      #   - Any test fails
+      #   - Coverage drops below the thresholds in jest.config.js
+      # NODE_ENV=test ensures the app knows it is running in a test context.
+      # No real database is needed — tests use Jest mocking.
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+
+      # ── Stage 6: Verify Build ──────────────────────────────────────────────
+      # Imports the Express app module to confirm it loads without
+      # runtime errors. Tests can pass while the app still crashes on
+      # startup — this step catches that scenario.
+      - name: Verify build
+        run: |
+          echo "Verifying application module loads correctly..."
+          node -e "
+            import('./src/app.js')
+              .then(() => { console.log('✅ App module loaded successfully'); process.exit(0); })
+              .catch(e => { console.error('❌ App failed to load:', e.message); process.exit(1); })
+          "
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 2 — CONTINUOUS DEPLOYMENT
+  # Only runs AFTER the CI job passes completely.
+  # Only runs on pushes to main (not on pull requests — we never deploy
+  # unreviewed code automatically).
+  # ═══════════════════════════════════════════════════════════════════════════
+  continuous-deployment:
+    name: Continuous Deployment
+    runs-on: ubuntu-latest
+
+    # This is the critical gate — CD only starts if CI passed
+    needs: continuous-integration
+
+    # Only deploy on actual pushes to main, not on pull request checks
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      # ── Stage 7: Deploy to Render ──────────────────────────────────────────
+      # Calls Render's deploy hook URL via HTTP POST.
+      # Render receives this signal and automatically:
+      #   1. Pulls the latest commit from GitHub
+      #   2. Runs the build command (npm ci)
+      #   3. Starts the server (node server.js)
+      #   4. Checks the health endpoint (GET /)
+      #   5. Switches traffic to the new deployment
+      #
+      # The deploy hook URL is stored as a GitHub secret (RENDER_DEPLOY_HOOK)
+      # so it is never exposed in the codebase or logs.
+      - name: Deploy to Render
+        run: |
+          echo "🚀 All CI checks passed. Triggering deployment to Render..."
+          echo "📦 Branch  : ${{ github.ref_name }}"
+          echo "📝 Commit  : ${{ github.sha }}"
+          echo "👤 Author  : ${{ github.actor }}"
+
+          curl --fail --silent --show-error \
+            --output /dev/null \
+            --write-out "HTTP Status: %{http_code}\n" \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+
+          echo "✅ Deployment triggered successfully. Render is now building..."
